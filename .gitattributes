@@ -1,0 +1,33 @@
+# --- Global line ending normalization ---
+
+# Auto-detect text files and normalize to LF in the repo
+* text=auto eol=lf
+
+# --- Specific overrides (optional but recommended) ---
+
+# Windows scripts (keep CRLF so they work in cmd.exe)
+*.bat text eol=crlf
+
+# Shell scripts (LF only — required for Linux/Docker)
+*.sh text eol=lf
+
+# Docker files, YAML, JSON, Markdown — keep LF for cross-platform consistency
+*.Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+
+# Python and JS/TS code — always LF
+*.py text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+
+# Config files — always LF
+*.toml text eol=lf
+*.cfg text eol=lf
+*.ini text eol=lf
+*.env text eol=lf
+

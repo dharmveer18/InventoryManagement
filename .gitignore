@@ -1,0 +1,15 @@
+# Root-level ignore
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+.env
+*.log
+
+# Python & Node environments
+venv/
+env/
+.venv/
+node_modules/
+
