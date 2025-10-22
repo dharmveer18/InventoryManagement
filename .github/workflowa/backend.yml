@@ -1,0 +1,132 @@
+name: Backend CI+CD (Django + SQLite)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: CI (migrate & test)
+    runs-on: ubuntu-latest
+    env:
+      BACKEND_DIR: "backend"
+      DJANGO_SETTINGS_MODULE: config.settings
+      DEBUG: "True"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles(format('{0}/requirements.txt', env.BACKEND_DIR)) }}
+
+      - name: Install dependencies
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install gunicorn  # optional if you use it in Docker
+
+      - name: Run migrations
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          python manage.py migrate --noinput
+
+      - name: Run Django tests
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          python manage.py test --noinput
+
+  build_push:
+    name: Build & Push Docker Image
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE_NAME: ghcr.io/dharmveer18/InventoryManagement-backend
+      CONTEXT: "."
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha
+
+      - name: Build & push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.CONTEXT }}
+          file: ${{ env.CONTEXT }}/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to Production
+    needs: build_push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy via SSH (docker compose + migrate)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST_PRODUCTION }}
+          username: ${{ secrets.SSH_USER_PRODUCTION }}
+          key: ${{ secrets.SSH_KEY_PRODUCTION }}
+          script: |
+            set -euxo pipefail
+            IMAGE="ghcr.io/<owner>/<repo>-backend:sha-${GITHUB_SHA}"
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            docker pull "$IMAGE"
+            docker pull ghcr.io/<owner>/<repo>-backend:latest || true
+
+            docker compose -f /opt/stack/production/docker-compose.yml up -d backend
+
+            # Run migrations in the deployed container
+            CONTAINER_ID=$(docker compose -f /opt/stack/production/docker-compose.yml ps -q backend)
+            docker exec "$CONTAINER_ID" python manage.py migrate --noinput
+
+            # Optional: collect static files
+            # docker exec "$CONTAINER_ID" python manage.py collectstatic --noinput
+
+            docker image prune -f
