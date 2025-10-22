@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Django specific
+*.sqlite3
+*.log
+
+# Environment
+env/
+venv/
+ENV/
+.venv/
+.env
+
+# Logs
+*.log
+
+# Node / Tailwind / JS
+node_modules/
+package-lock.json
+yarn.lock
+dist/
+build/
+*.js.map
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VSCode
+.vscode/
+
+# Test & coverage
+.coverage
+htmlcov/
+pytest_cache/
+.mypy_cache/
+
+# Static build files (if collected)
+staticfiles/
+media/

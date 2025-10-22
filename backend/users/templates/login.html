@@ -1,0 +1,24 @@
+<h1>Dashboard</h1>
+
+{% if is_admin %}
+  <section>
+    <h2>Admin Tools</h2>
+    <a href="{% url 'admin:index' %}">Go to Django Admin</a>
+  </section>
+{% endif %}
+
+{% if can_manage_team %}
+  <section>
+    <h2>Team Management</h2>
+    <a href="{% url 'team_list' %}">Manage team</a>
+  </section>
+{% endif %}
+
+<section>
+  <h2>Reports</h2>
+  {% if can_view_reports %}
+    <a href="{% url 'reports' %}">View reports</a>
+  {% else %}
+    <p>You don’t have access to reports.</p>
+  {% endif %}
+</section>
