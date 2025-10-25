@@ -1,4 +1,7 @@
-name: Backend CI+CD (Django + SQLite)
+name: Backend CI/CD (Django + SQLite)
+# This workflow runs tests, builds Docker images, and deploys to production
+# Deployment target: Remote server via SSH at /opt/stack/production/
+# See DEPLOYMENT.md for configuration details
 
 on:
   push:
@@ -53,6 +56,7 @@ jobs:
 
   build_push:
     name: Build & Push Docker Image
+    # Builds Docker image and pushes to GitHub Container Registry (ghcr.io)
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -60,8 +64,8 @@ jobs:
       contents: read
       packages: write
     env:
-      IMAGE_NAME: ghcr.io/dharmveer18/InventoryManagement-backend
-      CONTEXT: "."
+      IMAGE_NAME: ghcr.io/dharmveer18/inventorymanagement-backend
+      CONTEXT: "./backend"
     steps:
       - uses: actions/checkout@v4
 
@@ -91,7 +95,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ env.CONTEXT }}
-          file: ${{ env.CONTEXT }}/Dockerfile
+          file: ${{ env.CONTEXT }}/DockerFile
           push: true
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
@@ -101,6 +105,9 @@ jobs:
 
   deploy:
     name: Deploy to Production
+    # Deploys to production server via SSH
+    # Requires: SSH_HOST_PRODUCTION, SSH_USER_PRODUCTION, SSH_KEY_PRODUCTION secrets
+    # Deployment location: /opt/stack/production/ on remote server
     needs: build_push
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -114,11 +121,11 @@ jobs:
           key: ${{ secrets.SSH_KEY_PRODUCTION }}
           script: |
             set -euxo pipefail
-            IMAGE="ghcr.io/<owner>/<repo>-backend:sha-${GITHUB_SHA}"
+            IMAGE="ghcr.io/dharmveer18/inventorymanagement-backend:sha-${GITHUB_SHA}"
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             docker pull "$IMAGE"
-            docker pull ghcr.io/<owner>/<repo>-backend:latest || true
+            docker pull ghcr.io/dharmveer18/inventorymanagement-backend:latest || true
 
             docker compose -f /opt/stack/production/docker-compose.yml up -d backend
 
