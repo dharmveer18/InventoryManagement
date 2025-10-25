@@ -14,6 +14,8 @@ jobs:
   test:
     name: CI (lint & build)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       FRONTEND_DIR: "frontend"
 
@@ -100,6 +102,8 @@ jobs:
     needs: build_push
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     environment: production
     steps:
       - name: Deploy via SSH (docker compose)

@@ -14,6 +14,8 @@ jobs:
   test:
     name: CI (migrate & test)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       BACKEND_DIR: "backend"
       DJANGO_SETTINGS_MODULE: config.settings
@@ -104,6 +106,8 @@ jobs:
     needs: build_push
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     environment: production
     steps:
       - name: Deploy via SSH (docker compose + migrate)
