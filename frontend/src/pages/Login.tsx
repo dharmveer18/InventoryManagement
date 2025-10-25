@@ -1,22 +1,118 @@
 import React, { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { useNavigate } from "react-router-dom";
+import {
+  Box,
+  Paper,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  Container,
+  IconButton,
+  InputAdornment,
+} from "@mui/material";
+import {
+  Inventory as InventoryIcon,
+  Visibility,
+  VisibilityOff,
+} from "@mui/icons-material";
 
 export default function Login() {
-  const [username, setU] = useState(""); const [password, setP] = useState("");
-  const [err, setErr] = useState(""); const nav = useNavigate(); const { login } = useAuth();
-  const onSubmit = async (e: React.FormEvent) => {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const navigate = useNavigate();
+  const { login } = useAuth();
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try { await login(username, password); nav("/"); }
-    catch { setErr("Invalid credentials"); }
+    try {
+      await login(username, password);
+      navigate("/");
+    } catch {
+      setError("Invalid username or password");
+    }
   };
+
   return (
-    <form onSubmit={onSubmit} style={{ maxWidth: 360, margin: "4rem auto" }}>
-      <h2>Sign in</h2>
-      {err && <p style={{color:"crimson"}}>{err}</p>}
-      <input placeholder="Username" value={username} onChange={e=>setU(e.target.value)} />
-      <input placeholder="Password" type="password" value={password} onChange={e=>setP(e.target.value)} />
-      <button type="submit">Login</button>
-    </form>
+    <Container maxWidth="sm">
+      <Box
+        sx={{
+          marginTop: 8,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
+        <Paper
+          elevation={3}
+          sx={{
+            padding: 4,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            width: "100%",
+          }}
+        >
+          <InventoryIcon
+            sx={{ fontSize: 40, color: "primary.main", mb: 2 }}
+          />
+          <Typography component="h1" variant="h5" sx={{ mb: 3 }}>
+            Inventory Management System
+          </Typography>
+
+          {error && (
+            <Alert severity="error" sx={{ width: "100%", mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+
+          <Box component="form" onSubmit={handleSubmit} sx={{ width: "100%" }}>
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              label="Username"
+              autoComplete="username"
+              autoFocus
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              label="Password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowPassword(!showPassword)}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              sx={{ mt: 3, mb: 2, py: 1.5 }}
+            >
+              Sign In
+            </Button>
+          </Box>
+        </Paper>
+      </Box>
+    </Container>
   );
 }

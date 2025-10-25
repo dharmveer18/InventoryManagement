@@ -1,13 +1,65 @@
 from rest_framework import serializers
-from .models import Category, Item
-
+from .models import Category, Item, InventoryTransaction, Alert, InventoryLevel
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ["id", "name"]
+        fields = ['id', 'name', 'created_at', 'modified_at']
 
-# class StockHistorySerializer(serializers.ModelSerializer):
+class ItemSerializer(serializers.ModelSerializer):
+    category = CategorySerializer()
+    quantity = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Item
+        fields = [
+            'id', 'name', 'category', 'price',
+            'quantity', 'low_stock_threshold',
+            'created_at', 'modified_at'
+        ]
+        
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        print(f"Serializing item: {instance.name}, Quantity: {instance.quantity}")
+        return data
+
+class InventoryTransactionSerializer(serializers.ModelSerializer):
+    item_name = serializers.CharField(source='item.name', read_only=True)
+    performed_by_username = serializers.CharField(source='performed_by.username', read_only=True)
+
+    class Meta:
+        model = InventoryTransaction
+        fields = [
+            'id', 'item', 'item_name', 'delta', 'reason',
+            'performed_by', 'performed_by_username', 'created_at'
+        ]
+        read_only_fields = ['performed_by']
+
+class AlertSerializer(serializers.ModelSerializer):
+    item_name = serializers.CharField(source='item.name', read_only=True)
+
+    class Meta:
+        model = Alert
+        fields = [
+            'id', 'item', 'item_name', 'type', 'message',
+            'triggered_at', 'resolved_at'
+        ]
+
+class StockAdjustmentSerializer(serializers.Serializer):
+    item = serializers.PrimaryKeyRelatedField(queryset=Item.objects.all())
+    delta = serializers.IntegerField()
+    note = serializers.CharField(required=False, allow_blank=True)
+    reason = serializers.ChoiceField(
+        choices=InventoryTransaction.REASON_CHOICES,
+        default='manual'
+    )
+
+class BulkStockAdjustmentSerializer(serializers.Serializer):
+    adjustments = StockAdjustmentSerializer(many=True)
+    reason = serializers.ChoiceField(
+        choices=InventoryTransaction.REASON_CHOICES,
+        default='csv'
+    )
 #   item_id = serializers.PrimaryKeyRelatedField(queryset=Item.objects.all)
 
 class ItemSerializer(serializers.ModelSerializer):

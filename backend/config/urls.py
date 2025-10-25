@@ -1,18 +1,19 @@
 from django.contrib import admin
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from inventory.views import ItemViewSet, CategoryViewSet
 from users.api import me
+from users.token_views import CustomTokenObtainPairView, CustomTokenRefreshView
 
-router = DefaultRouter()
-router.register("items", ItemViewSet, basename="item")
-router.register("categories", CategoryViewSet, basename="category")
+# drf-spectacular imports
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("api/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/token/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
     path("api/me/", me),
-    path("api/", include(router.urls)),
+    path("api/inventory/", include('inventory.urls')),
+    path("api/users/", include('users.urls')),
+    # drf-spectacular schema and docs
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
 ]
