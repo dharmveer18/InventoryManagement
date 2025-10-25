@@ -13,7 +13,7 @@ services:
     environment:
       - DEBUG=True
       - DJANGO_SETTINGS_MODULE=config.settings
-      - SECRET_KEY=dev-secret-key-change-in-production
+      - SECRET_KEY=insecure-dev-key-CHANGE-THIS-IN-PRODUCTION
     # Uncomment the following line and create .env file for custom settings
     # env_file:
     #   - ./backend/.env
