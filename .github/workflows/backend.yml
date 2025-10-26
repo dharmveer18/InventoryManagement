@@ -51,74 +51,78 @@ jobs:
         run: |
           python manage.py test --noinput
 
-  build_push:
-    name: Build & Push Docker Image
+
+  build_and_deploy:
+    name: Build, Push to ECR & Deploy to ECS
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    env:
-      IMAGE_NAME: ghcr.io/dharmveer18/InventoryManagement-backend
-      CONTEXT: "."
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest
-            type=sha
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & push image
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ env.CONTEXT }}
-          file: ${{ env.CONTEXT }}/Dockerfile
-          push: true
-          platforms: linux/amd64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ secrets.ECR_REPOSITORY }}:latest ./backend
 
-  deploy:
-    name: Deploy to Production
-    needs: build_push
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Deploy via SSH (docker compose + migrate)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST_PRODUCTION }}
-          username: ${{ secrets.SSH_USER_PRODUCTION }}
-          key: ${{ secrets.SSH_KEY_PRODUCTION }}
-          script: |
-            set -euxo pipefail
-            IMAGE="ghcr.io/<owner>/<repo>-backend:sha-${GITHUB_SHA}"
-            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Push Docker image to ECR
+        run: |
+          docker push ${{ secrets.ECR_REPOSITORY }}:latest
 
-            docker pull "$IMAGE"
-            docker pull ghcr.io/<owner>/<repo>-backend:latest || true
+      - name: Download ECS task definition
+        run: |
+          aws ecs describe-task-definition --task-definition ${{ secrets.ECS_TASK_DEFINITION }} > task-def.json
+
+      - name: Update task definition image
+        run: |
+          export IMAGE_URI=${{ secrets.ECR_REPOSITORY }}:latest
+          jq '.taskDefinition.containerDefinitions[0].image = env.IMAGE_URI' task-def.json > new-task-def.json
+
+      - name: Register new task definition
+        run: |
+          aws ecs register-task-definition --cli-input-json file://new-task-def.json
+
+
+      - name: Update ECS service
+        run: |
+          aws ecs update-service --cluster ${{ secrets.ECS_CLUSTER }} --service ${{ secrets.ECS_SERVICE }} --force-new-deployment
+
+
+      - name: Run Django migrations and seed data in ECS
+        run: |
+          # Find the running task/container for the service
+          TASK_ARN=$(aws ecs list-tasks --cluster ${{ secrets.ECS_CLUSTER }} --service-name ${{ secrets.ECS_SERVICE }} --desired-status RUNNING --query 'taskArns[0]' --output text)
+          CONTAINER_NAME=$(aws ecs describe-task-definition --task-definition ${{ secrets.ECS_TASK_DEFINITION }} --query 'taskDefinition.containerDefinitions[0].name' --output text)
+          aws ecs execute-command \
+            --cluster ${{ secrets.ECS_CLUSTER }} \
+            --task "$TASK_ARN" \
+            --container "$CONTAINER_NAME" \
+            --interactive \
+            --command "python manage.py migrate --noinput"
+          aws ecs execute-command \
+            --cluster ${{ secrets.ECS_CLUSTER }} \
+            --task "$TASK_ARN" \
+            --container "$CONTAINER_NAME" \
+            --interactive \
+            --command "python manage.py seed_users"
+          aws ecs execute-command \
+            --cluster ${{ secrets.ECS_CLUSTER }} \
+            --task "$TASK_ARN" \
+            --container "$CONTAINER_NAME" \
+            --interactive \
+            --command "python manage.py seed_items"
+
 
             docker compose -f /opt/stack/production/docker-compose.yml up -d backend
 

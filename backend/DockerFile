@@ -7,9 +7,22 @@ ENV DJANGO_PROJECT_NAME=config
 
 WORKDIR /app
 
+# Add a non-root user for production
+RUN useradd -m appuser
+
 COPY requirements.txt .
+
+# Install requirements and Uvicorn
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir uvicorn
 
 COPY . .
 
-CMD ["sh", "-c", "gunicorn $DJANGO_PROJECT_NAME.wsgi:application --bind 0.0.0.0:8000"]
+# Set ownership and permissions for /app
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Run Django with Uvicorn only
+CMD ["uvicorn", "config.asgi:application", "--host", "0.0.0.0", "--port", "8000"]
