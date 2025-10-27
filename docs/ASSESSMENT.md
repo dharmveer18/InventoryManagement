@@ -182,6 +182,13 @@ Hardening & UX
 - Success toasts and optimistic UI for role changes
 - E2E tests (Playwright/Cypress)
 
+Architecture & data access
+- Introduce a Repository layer between the Service layer and the ORM to add a protection boundary and centralize data access
+  - Example: `InventoryRepository` (and peers) exposing vetted methods like `get_item_with_level(id)`, `adjust_stock_txn(...)`, `list_low_stock(limit)`
+  - Enforce invariants and transaction scopes (begin/commit/rollback) inside repository methods
+  - Encapsulate query shapes and prevent accidental N+1s; enable read/write segregation later if needed
+  - Improves testability (mock repositories) and isolates ORM/DB changes from services
+
 Ops
 - Switch DB to Postgres; add migrations & seed scripts
 - Add Redis for Celery broker/backend; add Celery Beat for schedules (monthly reports)
