@@ -4,6 +4,38 @@
  */
 
 export interface paths {
+    "/api/audit-logs/audit-logs/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["api_audit_logs_audit_logs_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/audit-logs/audit-logs/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["api_audit_logs_audit_logs_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/inventory/alerts/": {
         parameters: {
             query?: never;
@@ -34,22 +66,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["api_inventory_alerts_partial_update"];
-        trace?: never;
-    };
-    "/api/inventory/alerts/{id}/adjust_quantity/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["api_inventory_alerts_adjust_quantity_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/api/inventory/alerts/{id}/resolve/": {
@@ -150,7 +166,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/inventory/items/bulk_adjust/": {
+    "/api/inventory/items/bulk_adjust_stock/": {
         parameters: {
             query?: never;
             header?: never;
@@ -160,7 +176,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Adjust stock quantities for multiple items */
-        post: operations["api_inventory_items_bulk_adjust_create"];
+        post: operations["api_inventory_items_bulk_adjust_stock_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -191,22 +207,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["api_inventory_transactions_retrieve"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/me/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["api_me_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -277,14 +277,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/users/items/": {
+    "/api/users/users/": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["api_users_items_list"];
+        get: operations["api_users_users_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -293,14 +293,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/users/items/{id}/": {
+    "/api/users/users/{id}/": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["api_users_items_retrieve"];
+        get: operations["api_users_users_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -309,14 +309,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/users/items/me/": {
+    "/api/users/users/{id}/set-role/": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["api_users_items_me_retrieve"];
+        get?: never;
+        put?: never;
+        post: operations["api_users_users_set_role_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/users/me/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["api_users_users_me_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -329,6 +345,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description * `CREATE` - Create
+         *     * `UPDATE` - Update
+         *     * `DELETE` - Delete
+         *     * `STOCK_ADJUST` - Stock Adjustment
+         *     * `REPORT_GENERATE` - Report Generation
+         * @enum {string}
+         */
+        ActionEnum: "CREATE" | "UPDATE" | "DELETE" | "STOCK_ADJUST" | "REPORT_GENERATE";
         Alert: {
             readonly id: number;
             item: number;
@@ -339,6 +364,21 @@ export interface components {
             triggered_at?: string;
             /** Format: date-time */
             resolved_at?: string | null;
+        };
+        AuditLog: {
+            readonly id: number;
+            readonly actor: string;
+            readonly action: components["schemas"]["ActionEnum"];
+            readonly content_type: string;
+            readonly object_id: string;
+            readonly content_object: string;
+            readonly before_state: unknown;
+            readonly after_state: unknown;
+            readonly ip_address: string | null;
+            readonly user_agent: string;
+            readonly additional_context: unknown;
+            /** Format: date-time */
+            readonly created_at: string;
         };
         BulkStockAdjustment: {
             adjustments: components["schemas"]["StockAdjustment"][];
@@ -379,12 +419,6 @@ export interface components {
             category_id: number;
             readonly quantity: string;
         };
-        Me: {
-            id: number;
-            username: string;
-            role: string;
-            perms: string[];
-        };
         PaginatedAlertList: {
             /** @example 123 */
             count: number;
@@ -399,6 +433,21 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["Alert"][];
+        };
+        PaginatedAuditLogList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["AuditLog"][];
         };
         PaginatedCategoryList: {
             /** @example 123 */
@@ -524,7 +573,7 @@ export interface components {
              */
             is_staff?: boolean;
             /** Format: date-time */
-            date_joined?: string;
+            readonly date_joined: string;
         };
     };
     responses: never;
@@ -535,6 +584,50 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    api_audit_logs_audit_logs_list: {
+        parameters: {
+            query?: {
+                /** @description A page number within the paginated result set. */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAuditLogList"];
+                };
+            };
+        };
+    };
+    api_audit_logs_audit_logs_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this audit log. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditLog"];
+                };
+            };
+        };
+    };
     api_inventory_alerts_list: {
         parameters: {
             query?: {
@@ -664,34 +757,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-        };
-    };
-    api_inventory_alerts_adjust_quantity_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description A unique integer value identifying this alert. */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["Alert"];
-                "application/x-www-form-urlencoded": components["schemas"]["Alert"];
-                "multipart/form-data": components["schemas"]["Alert"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Alert"];
-                };
             };
         };
     };
@@ -1045,7 +1110,7 @@ export interface operations {
             };
         };
     };
-    api_inventory_items_bulk_adjust_create: {
+    api_inventory_items_bulk_adjust_stock_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -1110,25 +1175,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InventoryTransaction"];
-                };
-            };
-        };
-    };
-    api_me_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Me"];
                 };
             };
         };
@@ -1216,7 +1262,7 @@ export interface operations {
             };
         };
     };
-    api_users_items_list: {
+    api_users_users_list: {
         parameters: {
             query?: {
                 /** @description A page number within the paginated result set. */
@@ -1238,7 +1284,7 @@ export interface operations {
             };
         };
     };
-    api_users_items_retrieve: {
+    api_users_users_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -1260,7 +1306,35 @@ export interface operations {
             };
         };
     };
-    api_users_items_me_retrieve: {
+    api_users_users_set_role_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this user. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["User"];
+                "application/x-www-form-urlencoded": components["schemas"]["User"];
+                "multipart/form-data": components["schemas"]["User"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+        };
+    };
+    api_users_users_me_retrieve: {
         parameters: {
             query?: never;
             header?: never;

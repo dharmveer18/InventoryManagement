@@ -1,34 +1,13 @@
+import {
+  Item,
+  ItemCreateRequest,
+  ItemPutRequest,
+  Category,
+  InventoryTransaction,
+} from '../types/contracts';
 import api from '../api/client';
 import { PaginatedResponse } from '../types';
 
-export interface Item {
-  id: number;
-  name: string;
-  description: string;
-  quantity: number;
-  category: {
-    id: number;
-    name: string;
-  };
-  unit_price: number;
-  created_at: string;
-  modified_at: string;
-}
-
-export interface Category {
-  id: number;
-  name: string;
-}
-
-export interface Transaction {
-  id: number;
-  item: number;
-  quantity: number;
-  transaction_type: 'IN' | 'OUT';
-  reference: string;
-  notes: string;
-  created_at: string;
-}
 
 class InventoryService {
   async getItems(params?: { 
@@ -79,27 +58,21 @@ class InventoryService {
     }
   }
 
-  async createItem(item: Partial<Item>): Promise<Item> {
-    console.log('=== Inventory Service: createItem ===');
-    console.log('Creating item with data:', JSON.stringify(item, null, 2));
-    
-    try {
-      const response = await api.post('/inventory/items/', item);
-      
-      console.log('=== API Response ===');
-      console.log('Status:', response.status);
-      console.log('Headers:', response.headers);
-      console.log('Created item:', JSON.stringify(response.data, null, 2));
-      
-      return response.data;
-    } catch (error) {
-      console.error('Error creating item:', error);
-      throw error;
+  async createItem(item: ItemCreateRequest): Promise<Item> {
+    // Ensure category_id is present and correct
+    if (!('category_id' in item) || typeof item.category_id !== 'number') {
+      throw new Error('category_id must be provided as a number');
     }
+    const response = await api.post('/inventory/items/', item);
+    return response.data;
   }
 
-  async updateItem(id: number, item: Partial<Item>): Promise<Item> {
-    const response = await api.patch(`/inventory/items/${id}/`, item);
+  async updateItem(id: number, item: ItemPutRequest): Promise<Item> {
+    // Ensure category_id is present and correct
+    if (!('category_id' in item) || typeof item.category_id !== 'number') {
+      throw new Error('category_id must be provided as a number');
+    }
+    const response = await api.put(`/inventory/items/${id}/`, item);
     return response.data;
   }
 
@@ -121,7 +94,7 @@ class InventoryService {
     page?: number;
     item?: number;
     transaction_type?: 'IN' | 'OUT';
-  }): Promise<{ results: Transaction[]; count: number }> {
+  }): Promise<{ results: InventoryTransaction[]; count: number }> {
     const response = await api.get('/inventory/transactions/', { params });
     return response.data;
   }
@@ -132,7 +105,7 @@ class InventoryService {
     transaction_type: 'IN' | 'OUT';
     reference?: string;
     notes?: string;
-  }): Promise<Transaction> {
+  }): Promise<InventoryTransaction> {
     const response = await api.post('/inventory/transactions/', transaction);
     return response.data;
   }

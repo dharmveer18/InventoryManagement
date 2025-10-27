@@ -1,0 +1,7 @@
+item_id,item_name,quantity_delta,reason
+1,Whole Wheat Flour (5kg),-5,stocktake
+2,Olive Oil (1L),+10,recount
+3,Green Tea (20 bags),-12,expiry
+4,Potato Chips (200g),+25,shipment
+5,Dishwashing Liquid (500ml),-3,breakage
+6,Shampoo (250ml),+8,promo return

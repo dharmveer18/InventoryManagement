@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth/AuthContext'
 import { RequireAuth } from './auth/guards'
 import Dashboard from './pages/Dashboard'
+import AdminDashboard from './pages/AdminDashboard'
 import Login from './pages/Login'
 import './App.css'
 
@@ -25,6 +26,14 @@ const AppRoutes = () => {
         element={
           <RequireAuth>
             <Dashboard />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <RequireAuth>
+            <AdminDashboard />
           </RequireAuth>
         }
       />
