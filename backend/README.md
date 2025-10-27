@@ -49,8 +49,9 @@ Bash
 python manage.py migrate
 Bash
 
-# Create a superuser (follow the prompts for username/password)
-python manage.py createsuperuser
+# Create a superuser/User/Item list
+python manage.py seed_users
+python manage.py seed_list
 4. Run Development Server
 You're ready to start the server!
 

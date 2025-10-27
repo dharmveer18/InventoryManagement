@@ -25,6 +25,16 @@ class Item(models.Model):
 
     @property
     def quantity(self):
+        """
+        Computed, read-only stock level for this item.
+
+        Backed by InventoryLevel via the reverse OneToOne relation
+        `current_level` (defined on InventoryLevel.item with related_name="current_level").
+
+        - InventoryLevel is created on the first stock adjustment (see services.ledger.apply_stock_delta)
+        - Until then, accessing `current_level` may raise DoesNotExist; we report 0 in that case
+        - API serializers expose this value as read-only to force adjustments through the ledger
+        """
         try:
             return self.current_level.quantity
         except InventoryLevel.DoesNotExist:
@@ -40,6 +50,10 @@ class Item(models.Model):
         )
 
 class InventoryLevel(models.Model):
+    # Snapshot table storing the current on-hand quantity for an Item.
+    # Created/updated by the ledger when adjustments occur; avoids summing
+    # all InventoryTransaction rows on every read.
+    # Access from Item via `item.current_level` thanks to related_name.
     item = models.OneToOneField(Item, on_delete=models.CASCADE, related_name='current_level')
     quantity = models.PositiveIntegerField(default=0)
     updated_at = models.DateTimeField(auto_now=True)
@@ -88,16 +102,3 @@ class Alert(models.Model):
             models.Index(fields=['type', 'resolved_at']),
             models.Index(fields=['item'])
         ]
-
-
-# class StockHistory(models.Model):
-#   item = models.ForeignKey(Item, on_delete=models.CASCADE, related_name="history")
-#   delta = models.IntegerField() # +in / -out
-#   balance = models.IntegerField() # set on save
-#   note = models.CharField(max_length=200, blank=True)
-#   created_at = models.DateTimeField(auto_now_add=True)
-#   created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
-
-
-#   class Meta:
-#     ordering = ["-created_at"]

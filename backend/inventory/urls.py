@@ -7,7 +7,7 @@ from .views import (
 
 router = DefaultRouter()
 router.register(r'items', ItemViewSet, basename='item')
-router.register(r'categories', CategoryViewSet)
+router.register(r'categories', CategoryViewSet, basename='category')
 router.register(r'transactions', InventoryTransactionViewSet, basename='transaction')
 router.register(r'alerts', AlertViewSet, basename='alert')
 

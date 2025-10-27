@@ -1,18 +1,21 @@
 from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q, Prefetch
 from django.utils import timezone
 import logging
+from drf_spectacular.utils import extend_schema
 
 from .models import Item, Category, InventoryTransaction, Alert, InventoryLevel
 from .serializers import (
     ItemSerializer, CategorySerializer, InventoryTransactionSerializer,
-    AlertSerializer, StockAdjustmentSerializer, BulkStockAdjustmentSerializer
+    AlertSerializer, StockAdjustmentSerializer, BulkStockAdjustmentSerializer,
+    QuantityOnlySerializer,
 )
 from .services import ledger, inventory
+from django.conf import settings
 from users.permissions import IsViewerOrReadOnly, IsManagerOrAbove, RequireModelPerm
 
 logger = logging.getLogger(__name__)
@@ -47,6 +50,9 @@ class ItemViewSet(viewsets.ModelViewSet):
         
         return response
 
+    @extend_schema(
+        responses=InventoryTransactionSerializer
+    )
     @action(
         detail=True,
         methods=['post'],
@@ -58,14 +64,17 @@ class ItemViewSet(viewsets.ModelViewSet):
         item = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
         try:
             transaction = ledger.apply_stock_delta(
                 item=item,
                 delta=serializer.validated_data['delta'],
                 user=request.user,
                 note=serializer.validated_data.get('note', ''),
-                reason=serializer.validated_data.get('reason', 'manual')
+                reason=serializer.validated_data.get('reason', 'manual'),
+                audit_context={
+                    'ip_address': request.META.get('REMOTE_ADDR'),
+                    'user_agent': request.META.get('HTTP_USER_AGENT', ''),
+                }
             )
             return Response(InventoryTransactionSerializer(transaction).data)
         except ledger.InsufficientStockError as e:
@@ -74,29 +83,63 @@ class ItemViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+    def get_permissions(self):
+        """Enforce role- and permission-based access for item writes.
+        - Viewers can read
+        - Managers (and above) with model perm can create/update/destroy
+        """
+        if self.action in ("create", "update", "partial_update", "destroy"):
+            # Require Manager+ and Django model change permission
+            class ChangeItem(RequireModelPerm):
+                required_perms = ["inventory.change_item"]
+            return [IsManagerOrAbove(), ChangeItem()]
+        return super().get_permissions()
+
+    def get_serializer_class(self):
+        """Limit non-admin updates to only the quantity field.
+        Admins can edit all fields; managers/staff get QuantityOnlySerializer on updates.
+        """
+        if self.action in ("update", "partial_update") and not getattr(self.request.user, "is_admin", False):
+            return QuantityOnlySerializer
+        return super().get_serializer_class()
+
+    @extend_schema(
+        responses=InventoryTransactionSerializer(many=True)
+    )
     @action(
         detail=False,
         methods=['post'],
         permission_classes=[IsManagerOrAbove],
         serializer_class=BulkStockAdjustmentSerializer
     )
-    def bulk_adjust(self, request):
+    def bulk_adjust_stock(self, request):
         """Adjust stock quantities for multiple items"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
         try:
             transactions = []
             for adjustment in serializer.validated_data['adjustments']:
+                item = adjustment['item']
+                requested_delta = adjustment['delta']
+                # Clamp negative deltas so stock never goes below zero.
+                # This makes bulk operations forgiving and avoids partial failures.
+                if requested_delta < 0:
+                    available = item.quantity  # uses InventoryLevel snapshot; 0 if none
+                    if available + requested_delta < 0:
+                        requested_delta = -available  # zero out the stock at most
+
                 transaction = ledger.apply_stock_delta(
-                    item=adjustment['item'],
-                    delta=adjustment['delta'],
+                    item=item,
+                    delta=requested_delta,
                     user=request.user,
                     note=adjustment.get('note', ''),
-                    reason=serializer.validated_data.get('reason', 'csv')
+                    reason=serializer.validated_data.get('reason', 'csv'),
+                    audit_context={
+                        'ip_address': request.META.get('REMOTE_ADDR'),
+                        'user_agent': request.META.get('HTTP_USER_AGENT', ''),
+                    }
                 )
                 transactions.append(transaction)
-            
             return Response(
                 InventoryTransactionSerializer(transactions, many=True).data
             )
@@ -140,9 +183,18 @@ class CategoryViewSet(viewsets.ModelViewSet):
         
         return response
 
+    def get_permissions(self):
+        """Admins only for writes; viewers (and above) can read.
+        This explicitly tightens category create/update/delete to admins.
+        """
+        if self.action in ("create", "update", "partial_update", "destroy"):
+            from users.permissions import IsAdmin
+            return [IsAdmin()]
+        return super().get_permissions()
+
 class InventoryTransactionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = InventoryTransactionSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
 
     def get_queryset(self):
         queryset = InventoryTransaction.objects.select_related('item', 'performed_by')
@@ -181,48 +233,18 @@ class AlertViewSet(viewsets.ModelViewSet):
         """Mark an alert as resolved"""
         alert = self.get_object()
         if not alert.resolved_at:
+            before_state = {'resolved_at': None}
             alert.resolved_at = timezone.now()
             alert.save()
+            after_state = {'resolved_at': str(alert.resolved_at)}
+            AuditLog.log_action(
+                actor=request.user,
+                action='UPDATE',
+                instance=alert,
+                before_state=before_state,
+                after_state=after_state,
+                ip_address=request.META.get('REMOTE_ADDR'),
+                user_agent=request.META.get('HTTP_USER_AGENT'),
+                additional_context={'action': 'resolve'}
+            )
         return Response(self.get_serializer(alert).data)
-    permission_classes = [IsViewerOrReadOnly]  # GET for all roles; writes need Manager+
-
-    def get_permissions(self):
-        if self.action in ("create", "update", "partial_update", "destroy"):
-            # Manager+ AND must have the model perms (from groups)
-            class ChangeItem(RequireModelPerm): required_perms = ["inventory.change_item"]
-            return [IsManagerOrAbove(), ChangeItem()]
-        return super().get_permissions()
-
-    def get_serializer_class(self):
-        # Managers cannot change name/price/category via normal update; enforce server-side
-        if self.action in ("update", "partial_update") and not self.request.user.is_admin:
-            return QuantityOnlySerializer
-        return super().get_serializer_class()
-
-    @action(detail=True, methods=["post"])
-    def adjust_quantity(self, request, pk=None):
-        # Explicit action to bump quantity; also protected by IsManagerOrAbove + model perms
-        class ChangeItem(RequireModelPerm): required_perms = ["inventory.change_item"]
-        for perm in (IsManagerOrAbove(), ChangeItem()):
-            if not perm.has_permission(request, self): return Response(status=status.HTTP_403_FORBIDDEN)
-        item = self.get_object()
-        try:
-            delta = int(request.data.get("delta", "0"))
-        except ValueError:
-            return Response({"detail": "delta must be integer"}, status=400)
-        item.quantity = item.quantity + delta
-        item.save(update_fields=["quantity"])
-        return Response(QuantityOnlySerializer(item).data)
-
-class CategoryViewSet(viewsets.ModelViewSet):
-    queryset = Category.objects.all()
-    serializer_class = CategorySerializer
-    permission_classes = [IsViewerOrReadOnly]
-
-    def get_permissions(self):
-        if self.action in ("create", "update", "partial_update", "destroy"):
-            class ChangeCat(RequireModelPerm): required_perms = ["inventory.change_category"]
-            # Only Admins should manage catalog in this example:
-            from users.permissions import IsAdmin
-            return [IsAdmin(), ChangeCat()]
-        return super().get_permissions()

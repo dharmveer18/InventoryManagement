@@ -49,6 +49,7 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
 }
 
+import logging
 # Logging Configuration
 LOGGING = {
     'version': 1,
@@ -88,19 +89,14 @@ LOGGING = {
             'propagate': True,
         },
     },
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-        },
-    },
-    'loggers': {
-        'inventory': {
-            'handlers': ['console'],
-            'level': 'INFO',
-        },
-    },
 }
+
+# Log on initialisation
+import sys
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logger = logging.getLogger('django')
+logger.info('Django initialisation: INFO log')
+logger.error('Django initialisation: ERROR log')
 
 
 # Application definition
@@ -276,3 +272,6 @@ JWT_REFRESH_COOKIE_NAME = "refresh_token"
 JWT_COOKIE_SAMESITE = "Lax"  # "Strict" if same-site only
 JWT_COOKIE_SECURE = False    # True in production behind HTTPS
 JWT_COOKIE_PATH = "/"
+
+# Audit logging toggle (can be disabled in tests or dev)
+AUDIT_ENABLED = True

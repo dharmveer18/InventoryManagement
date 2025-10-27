@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict, Any
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -8,7 +8,7 @@ from inventory.models import (
     InventoryLevel,
     Alert
 )
-from audit.models import AuditLog
+from .audit import log_stock_adjust
 
 class LedgerError(Exception):
     """Base exception for ledger operations"""
@@ -18,14 +18,15 @@ class InsufficientStockError(LedgerError):
     """Raised when trying to reduce stock below zero"""
     pass
 
-@transaction.atomic
+#@transaction.atomic
 def apply_stock_delta(
     *, 
     item: Item, 
     delta: int, 
     user=None, 
     note: str = "",
-    reason: str = "manual"
+    reason: str = "manual",
+    audit_context: Optional[Dict[str, Any]] = None,
 ) -> InventoryTransaction:
     """
     Apply a stock quantity change and record the transaction.
@@ -43,7 +44,11 @@ def apply_stock_delta(
     Raises:
         InsufficientStockError: If change would make stock negative
     """
-    # Get or create inventory level with lock
+    # InventoryLevel is the snapshot backing Item.quantity, accessible via
+    # Item.current_level (reverse OneToOne). We create/update it here so
+    # reads don't need to aggregate transactions. See Item.quantity docs.
+    #
+    # Get or create inventory level with a row lock to serialize concurrent changes
     level, created = InventoryLevel.objects.select_for_update().get_or_create(
         item=item,
         defaults={'quantity': 0}
@@ -74,14 +79,15 @@ def apply_stock_delta(
     # Check for low stock condition
     handle_low_stock_alert(item, new_quantity, old_quantity)
 
-    # Record audit log
-    AuditLog.log_action(
+    # Record audit log via facade (safe and deferred)
+    # Include correlation_id to tie audit to this transaction
+    ctx = {**(audit_context or {}), 'note': note, 'reason': reason, 'correlation_id': transaction.id}
+    log_stock_adjust(
+        item=item,
         actor=user,
-        action='STOCK_ADJUST',
-        instance=item,
         before_state={'quantity': old_quantity},
         after_state={'quantity': new_quantity},
-        additional_context={'note': note, 'reason': reason}
+        context=ctx,
     )
 
     return transaction
