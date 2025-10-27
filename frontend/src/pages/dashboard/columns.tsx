@@ -22,15 +22,15 @@ export const columnsFactory = ({ onEdit, onDelete, onAdjust }: Handlers): GridCo
   {
     field: "id",
     headerName: "ID",
-    width: 70,
+    width: 60,
     align: "center",
     headerAlign: "center",
   },
-  { field: "name", headerName: "Name", width: 200 },
+  { field: "name", headerName: "Name", width: 200, flex: 1, minWidth: 180 },
   {
     field: "price",
     headerName: "Price",
-    width: 50,
+    width: 100,
     align: "right",
     headerAlign: "right",
     renderCell: (params) => {
@@ -41,13 +41,13 @@ export const columnsFactory = ({ onEdit, onDelete, onAdjust }: Handlers): GridCo
   {
     field: "category",
     headerName: "Category",
-    width: 100,
+    width: 130,
     valueGetter: categoryNameGetter,
   },
   {
     field: "quantity",
     headerName: "Quantity",
-    width: 50,
+    width: 100,
     headerAlign: "right",
     align: "right",
     renderCell: (params: GridRenderCellParams) => {
@@ -74,7 +74,7 @@ export const columnsFactory = ({ onEdit, onDelete, onAdjust }: Handlers): GridCo
   {
     field: "status",
     headerName: "Status",
-    width: 80,
+    width: 100,
     align: "center",
     headerAlign: "center",
     sortable: true,
@@ -138,9 +138,10 @@ export const columnsFactory = ({ onEdit, onDelete, onAdjust }: Handlers): GridCo
         <RoleGate min="manager">
           <Button
             size="small"
-            variant="outlined"
+            variant="text"
+            color="primary"
             onClick={() => onAdjust(item)}
-            sx={{ minWidth: 0, px: 0.6, py: 0.1, fontSize: '0.68rem', lineHeight: 1.2, textTransform: 'none' }}
+            sx={{ minWidth: 0, px: 0.4, py: 0, fontSize: '0.78rem', lineHeight: 1.2, textTransform: 'none', fontWeight: 600 }}
           >
             Adjust
           </Button>
@@ -162,9 +163,10 @@ export const columnsFactory = ({ onEdit, onDelete, onAdjust }: Handlers): GridCo
         <RoleGate min="admin">
           <Button
             size="small"
-            variant="outlined"
+            variant="text"
+            color="primary"
             onClick={() => onEdit(item)}
-            sx={{ minWidth: 0, px: 0.6, py: 0.1, fontSize: '0.68rem', lineHeight: 1.2, textTransform: 'none' }}
+            sx={{ minWidth: 0, px: 0.4, py: 0, fontSize: '0.78rem', lineHeight: 1.2, textTransform: 'none', fontWeight: 600 }}
           >
             Edit
           </Button>
@@ -187,9 +189,9 @@ export const columnsFactory = ({ onEdit, onDelete, onAdjust }: Handlers): GridCo
           <Button
             size="small"
             color="error"
-            variant="outlined"
+            variant="text"
             onClick={() => onDelete(item.id)}
-            sx={{ minWidth: 0, px: 0.6, py: 0.1, fontSize: '0.68rem', lineHeight: 1.2, textTransform: 'none' }}
+            sx={{ minWidth: 0, px: 0.4, py: 0, fontSize: '0.78rem', lineHeight: 1.2, textTransform: 'none', fontWeight: 600 }}
           >
             Delete
           </Button>

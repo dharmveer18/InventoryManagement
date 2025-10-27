@@ -15,25 +15,6 @@ Full-stack RBAC inventory app with a React (Vite + TypeScript) frontend and a Dj
 - Optional: Docker + Docker Compose
 - Optional (for deployment): AWS account (ECS, S3/CloudFront)
 
-## Quickstart
-
-Backend
-- Python 3.11+
-- Install deps and migrate:
-  - `pip install -r backend/requirements.txt`
-  - `python backend/manage.py migrate`
-- Seed sample data (optional):
-  - `python backend/manage.py seed_users`
-  - `python backend/manage.py seed_list`
-- Run dev server: `python backend/manage.py runserver`
-
-Frontend
-- Node 18+
-- Install deps: `cd frontend && npm install`
-- Start dev server: `npm run dev`
-
-Open API docs at `http://localhost:8000/api/docs/` when the backend is running.
-
 ## Local Setup
 
 

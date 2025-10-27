@@ -6,12 +6,116 @@ import { useDashboard } from "./dashboard/useDashboard";
 import { InventoryTable } from "../components/InventoryTable";
 import { SummaryCards } from "../components/SummaryCards";
 import { Layout } from "./dashboard/Layout";
-import { Box, Typography, Button, Alert, Paper, Stack } from "@mui/material";
+import { Box, Typography, Button, Alert, Paper, Stack, Tabs, Tab, MenuItem, Select, Table, TableHead, TableRow, TableCell, TableBody, FormControl, FormHelperText } from "@mui/material";
 import { Add as AddIcon, UploadFile as UploadFileIcon } from "@mui/icons-material";
 import { Item } from '../types';
 import { AddItemDialog } from '../components/AddItemDialog';
 import { EditItemDialog } from '../components/EditItemDialog';
 import BulkStockCsvDialog from '../components/BulkStockCsvDialog';
+import { useUsersList, useSetUserRole, type AppUser } from '../hooks/useUsers';
+
+// Users management panel component
+function UsersManagementPanel() {
+  const { data, isLoading } = useUsersList();
+  const setRole = useSetUserRole();
+  const [pendingRoles, setPendingRoles] = React.useState<Record<number, 'admin'|'manager'|'viewer'>>({});
+  const [savingAll, setSavingAll] = React.useState(false);
+  const [editing, setEditing] = React.useState<Record<number, boolean>>({});
+  const hasChanges = Object.keys(pendingRoles).length > 0;
+
+  const applyAll = async () => {
+    if (!hasChanges) return;
+    setSavingAll(true);
+    try {
+      for (const [idStr, role] of Object.entries(pendingRoles)) {
+        const id = Number(idStr);
+        await (setRole as any).mutateAsync({ id, role });
+      }
+      setPendingRoles({});
+    } finally {
+      setSavingAll(false);
+    }
+  };
+
+  return (
+    <Box sx={{ mt: 2, p: 2 }}>
+      <Typography variant="h6" sx={{ mb: 1 }}>Assign Roles</Typography>
+      <Stack direction="row" justifyContent="flex-end" sx={{ mb: 1 }}>
+        <Button
+          variant="contained"
+          disabled={!hasChanges || savingAll}
+          onClick={applyAll}
+          size="small"
+        >
+          {savingAll ? 'Assigning…' : 'Assign'}
+        </Button>
+      </Stack>
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell>ID</TableCell>
+            <TableCell>Username</TableCell>
+            <TableCell>Email</TableCell>
+            <TableCell>Role</TableCell>
+            <TableCell align="center">Edit</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {(data ?? []).filter((u: AppUser) => u.username !== 'admin.user').map((u: AppUser) => (
+            <TableRow key={u.id}>
+              <TableCell>{u.id}</TableCell>
+              <TableCell>{u.username}</TableCell>
+              <TableCell>{u.email}</TableCell>
+              <TableCell>
+                {(() => {
+                  const current = u.role ?? 'viewer';
+                  const draft = pendingRoles[u.id] ?? current;
+                  const changed = draft !== current;
+                  const isEditing = !!editing[u.id];
+                  const disabled = savingAll || !isEditing;
+                  const helper = savingAll && changed
+                    ? 'Saving…'
+                    : changed
+                    ? 'Staged'
+                    : isEditing
+                    ? 'Editing'
+                    : undefined;
+                  return (
+                    <FormControl size="small" disabled={disabled}>
+                      <Select
+                        size="small"
+                        value={draft}
+                        onChange={(e) => setPendingRoles((prev) => ({ ...prev, [u.id]: e.target.value as 'admin'|'manager'|'viewer' }))}
+                        aria-label={`Set role for ${u.username}`}
+                      >
+                        <MenuItem value="admin">admin</MenuItem>
+                        <MenuItem value="manager">manager</MenuItem>
+                        <MenuItem value="viewer">viewer</MenuItem>
+                      </Select>
+                      {helper ? <FormHelperText>{helper}</FormHelperText> : null}
+                    </FormControl>
+                  );
+                })()}
+              </TableCell>
+              <TableCell align="center">
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => setEditing((prev) => ({ ...prev, [u.id]: !prev[u.id] }))}
+                >
+                  {editing[u.id] ? 'Done' : 'Edit'}
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+          {(!isLoading && (data ?? []).length === 0) && (
+            <TableRow><TableCell colSpan={5}>No users.</TableCell></TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </Box>
+  );
+}
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -37,6 +141,7 @@ export default function Dashboard() {
   } = useDashboard();
   const [isBulkDialogOpen, setBulkDialogOpen] = useState(false);
   const location = useLocation();
+  const [adminTab, setAdminTab] = useState(0);
 
   // Support deep-linking: /?add=1 opens the Add Item dialog
   useEffect(() => {
@@ -69,12 +174,21 @@ export default function Dashboard() {
             categoriesCount={categories.length}
           />
 
+          <RoleGate min="admin">
+            <Paper sx={{ mb: 2 }}>
+              <Tabs value={adminTab} onChange={(_e, v) => setAdminTab(v)}>
+                <Tab label="Inventory" />
+                <Tab label="User Management" />
+              </Tabs>
+            </Paper>
+          </RoleGate>
+
           <Paper 
             sx={{ 
-              width: '70%',
+              width: '100%',
               mb: 2,
               mx: 'auto',
-              maxWidth: '70vw',
+              maxWidth: '100%',
               borderRadius: 2,
               overflow: 'hidden',
               boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
@@ -95,33 +209,38 @@ export default function Dashboard() {
               },
             }}
           >
-            <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e0e0e0' }}>
-              <Typography variant="h6">Inventory Items</Typography>
-              <Stack direction="row" spacing={1}>
-                <RoleGate min="manager">
-                  <Button
-                    variant="outlined"
-                    startIcon={<UploadFileIcon />}
-                    onClick={() => setBulkDialogOpen(true)}
-                  >
-                    Bulk Upload
-                  </Button>
-                </RoleGate>
-                <RoleGate min="admin">
-                  <Button variant="contained" startIcon={<AddIcon />} onClick={openAdd}>Add Item</Button>
-                </RoleGate>
-              </Stack>
-            </Box>
-            <Box sx={{ p: 2 }}>
-              <InventoryTable 
-                items={items}
-                loading={isLoadingItems || isLoadingCategories}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onAdjust={openAdjust}
-                userRole={user?.role}
-              />
-            </Box>
+            {adminTab === 0 && (
+              <>
+                <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e0e0e0' }}>
+                  <Typography variant="h6">Inventory Items</Typography>
+                  <Stack direction="row" spacing={1}>
+                    <RoleGate min="manager" max="manager">
+                      <Button
+                        variant="outlined"
+                        startIcon={<UploadFileIcon />}
+                        onClick={() => setBulkDialogOpen(true)}
+                      >
+                        Bulk Upload
+                      </Button>
+                    </RoleGate>
+                    <RoleGate min="admin">
+                      <Button variant="contained" startIcon={<AddIcon />} onClick={openAdd}>Add Item</Button>
+                    </RoleGate>
+                  </Stack>
+                </Box>
+                <Box sx={{ p: 2 }}>
+                  <InventoryTable 
+                    items={items}
+                    loading={isLoadingItems || isLoadingCategories}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onAdjust={openAdjust}
+                    userRole={user?.role}
+                  />
+                </Box>
+              </>
+            )}
+            {adminTab === 1 && <UsersManagementPanel />}
           </Paper>
       </Box>
 
