@@ -1,136 +1,89 @@
-Inventory Management System Backend
-This is the backend service for the Inventory Management System, built using Django and Django Rest Framework (DRF).
+# Inventory Management System — Backend
 
-Prerequisites
-You'll need a few basics before you start:
+Django + DRF API for the Inventory Management System. JWT auth, role-based permissions, audit logs, and inventory endpoints.
 
-Python 3.x
+## Prerequisites
+- Python 3.11+
+- pip
+- virtualenv (recommended)
+- Docker and Docker Compose (optional)
 
-pip (Python package manager)
+## Local development
 
-Virtualenv (recommended for clean dependency management)
+1) Create and activate a virtualenv
 
-Docker and Docker Compose (optional, for the containerized setup)
-
-Local Development Setup
-Follow these steps to get your environment set up and the server running locally.
-
-1. Create & Activate Virtual Environment
-We'll create an isolated environment named venv.
-
-Bash
-
-# Create the virtual environment
+```bash
 python -m venv venv
-To activate it:
-
-On Windows:
-
-Bash
-
+# Windows
 venv\Scripts\activate
-On Unix or macOS:
-
-Bash
-
+# macOS/Linux
 source venv/bin/activate
-2. Install Dependencies
-With the venv active, install all required packages:
+```
 
-Bash
+2) Install dependencies
 
+```bash
 pip install -r requirements.txt
-3. Database & Superuser Setup
-Initialize the database and create your administrative account.
+```
 
-Bash
+3) Migrate database and seed data
 
-# Apply initial migrations
+```bash
 python manage.py migrate
-Bash
+python manage.py seed_users   # creates admin/manager/viewer users
+python manage.py seed_items   # seeds sample items
+```
 
-# Create a superuser/User/Item list
-python manage.py seed_users
-python manage.py seed_list
-4. Run Development Server
-You're ready to start the server!
+Optional utilities:
 
-Bash
+```bash
+python manage.py list_users_sql  # list users with roles
+python manage.py list_items      # list items
+```
 
+4) Run the server
+
+```bash
 python manage.py runserver
-The server will be running at: http://localhost:8000
+```
 
-Docker Setup
-Use Docker for a consistent, contained environment.
+API root: http://localhost:8000/api/
 
-1. Build and Run Containers
-Use Docker Compose to build the necessary images and start your services (backend and database).
+## Authentication
+- Obtain tokens: `POST /api/token/` with `{ username, password }`
+- Refresh token: `POST /api/token/refresh/` with `{ refresh }`
+- OpenAPI docs: http://localhost:8000/api/docs/
 
-Bash
+Seeded users (after running `seed_users`):
+- admin.user / Admin@123 — admin
+- manager.user / Manager@123 — manager
+- basic.user1 / Basic@123 — viewer
+- basic.user2 / Basic@123 — viewer
 
-# Build and start the containers (in detached/background mode)
+## Docker
+
+```bash
 docker-compose up -d --build
-The service will be available at: http://localhost:8000
+```
 
-2. Essential Docker Commands
-Use these commands to manage and interact with the running backend service.
+Common actions:
 
-Stop Containers:
-
-Bash
-
-docker-compose down
-View Live Logs (for debugging):
-
-Bash
-
+```bash
 docker-compose logs -f backend
-Run Migrations inside Docker:
-
-Bash
-
 docker-compose exec backend python manage.py migrate
-Create Superuser inside Docker:
-
-Bash
-
 docker-compose exec backend python manage.py createsuperuser
-API & Access
-Once the server is running, use these links:
+```
 
-Admin interface: http://localhost:8000/admin/
+## Environment variables
+- `DEBUG` — True/False
+- `SECRET_KEY` — Django secret
+- `ALLOWED_HOSTS` — comma-separated list
+- `DATABASE_URL` — optional external DB URL
 
-API endpoints: http://localhost:8000/api/
+## Testing
 
-Environment Variables
-These variables are used for configuration. If not set, default values are usually used (e.g., DEBUG=True).
-
-DEBUG: Set to True/False for development/production mode.
-
-SECRET_KEY: Django secret key.
-
-DATABASE_URL: Database connection string (if using external database).
-
-ALLOWED_HOSTS: Comma-separated list of allowed hosts.
-
-Testing & Utilities
-Running Tests
-Bash
-
-# Run all tests
+```bash
 python manage.py test
-Run Tests with Coverage:
-
-Bash
-
-coverage run manage.py test
-coverage report
-Utility Commands
-Bash
-
-# Seed sample items
-python manage.py seed_items
-Bash
-
-# Create initial user
-python manage.py create_user
+# or with coverage
+coverage run manage.py test && coverage report
+```
